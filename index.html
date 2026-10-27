@@ -218,6 +218,7 @@ footer a{color:var(--muted)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 const ARTICLE_URL = "https://note.com/s_reflection/n/n6c0dc5b0886c";
+const FORM_URL = "https://docs.google.com/forms/d/1U68fBwKgfqQ9LiDg1SOk-TRq3aetyhV-lnJhqTp0qpA/viewform";
 const STORE_KEY = "sqf-case-practice-v1";
 
 const Q = {
@@ -235,13 +236,6 @@ const Q = {
      intent:"生まれた気づきを、具体的な一歩につなげる"}
 };
 const ORDER = ["c","a","m","k"]; // top-left, top-right, bottom-left, bottom-right
-
-const PARTS = [
-  {no:1, title:"一つのセッションを通して",
-   desc:"上司との関係に悩むクライアントとの、一つのセッションを最初から最後まで追いかけます。前の場面の問いを受けて、クライアントの言葉が少しずつ変わっていきます。"},
-  {no:2, title:"さまざまな場面で",
-   desc:"別々のクライアントとのセッションから、場面を一つずつ取り上げます。セッションの途中を切り出した一場面として、クライアントの状態を見立ててください。"}
-];
 
 const SCENES = [
   {part:1, phase:"セッション冒頭", ctx:"クライアントが今日のテーマを話し始めたところ",
@@ -394,7 +388,7 @@ function intro(){
     <span class="stepno">それでは</span>
     <h2>実際のセッション場面で、問いを選んでみましょう</h2>
     <p>クライアントの言葉を読んで、どのエリアの問いを選ぶかを決め、自分の言葉で問いを書いてみてください。そのあとで、事例のコーチの見立てをお見せします。</p>
-    <p class="small muted">演習は2部構成です。第1部は一つのセッションを通して、第2部はさまざまな場面で進みます。どの場面のあとでも、そこまでの記録でPDFを受け取れます。途中で閉じても、同じ端末なら続きから再開できます。</p>
+    <p class="small muted">前半の6場面は、一人のクライアントとの一つのセッションを、最初から最後まで追いかけます。後半の4場面は、別々のクライアントとの場面です。どの場面のあとでも、そこまでの記録でPDFを受け取れます。途中で閉じても、同じ端末なら続きから再開できます。</p>
     <p class="note">正解を当てる演習ではありません。事例のコーチの見立ても、一つの見方です。大切なのは、なぜそのエリアを選んだのかを、自分の言葉で言えることです。</p>
     <div><button class="btn" id="start">${inProgress||done?"最初から演習をはじめる":"演習をはじめる"}</button></div>
     <div id="startConfirm"></div>
@@ -413,55 +407,28 @@ function intro(){
     if(seenSet.size===4){ S.seen = true; save(); document.getElementById("practice").hidden = false; }
   });
   const r = document.getElementById("resume");
-  if(r) r.onclick = ()=>{ (S.idx===PART1_END ? partIntro(2) : scene()); toTop(); };
+  if(r) r.onclick = ()=>{ scene(); toTop(); };
   const e = document.getElementById("toEnd");
   if(e) e.onclick = ()=>{ end(); toTop(); };
   document.getElementById("start").onclick = ()=>{
-    if(S.idx===0){ partIntro(1); toTop(); return; }
+    if(S.idx===0){ scene(); toTop(); return; }
     const box = document.getElementById("startConfirm");
     box.innerHTML = `<div class="confirm"><p>最初からはじめると、前回の記録は消えます。</p>
       <div class="row"><button class="btn ghost" id="startYes">記録を消して、最初からはじめる</button></div></div>`;
-    document.getElementById("startYes").onclick = ()=>{ reset(); partIntro(1); toTop(); };
+    document.getElementById("startYes").onclick = ()=>{ reset(); scene(); toTop(); };
   };
-}
-
-/* ---------- part screens ---------- */
-function partIntro(no){
-  const p = PARTS[no-1], count = SCENES.filter(s=>s.part===no).length;
-  app.innerHTML = `
-  <header class="hero">
-    <span class="eyebrow">第${no}部</span>
-    <h1>${p.title}</h1>
-    <p class="lead">${p.desc}</p>
-    <div class="facts"><span>場面 <b>${count}</b></span></div>
-  </header>
-  <div><button class="btn" id="go">第${no}部をはじめる</button></div>
-  ${footer()}`;
-  document.getElementById("go").onclick = ()=>{ scene(); toTop(); };
-}
-
-function interlude(){
-  app.innerHTML = `
-  <header class="hero">
-    <span class="eyebrow">第1部を終えました</span>
-    <h1>一つのセッションを、最後まで追いかけました。</h1>
-    <p class="lead">第2部では、別々のクライアントとの場面を${N-PART1_END}つ取り上げます。ここで終えて、第1部までの記録でPDFを受け取ることもできます。</p>
-  </header>
-  <div class="row"><button class="btn" id="p2">第2部へ進む</button><button class="btn ghost" id="stop">ここで終えてPDFを受け取る</button></div>
-  ${footer()}`;
-  document.getElementById("p2").onclick = ()=>{ partIntro(2); toTop(); };
-  document.getElementById("stop").onclick = ()=>{ end(); toTop(); };
 }
 
 /* ---------- scene: 1 pick → 2 write → 3 check → 4 coach's view ---------- */
 function scene(){
   const i = S.idx, s = SCENES[i];
-  const inPart = SCENES.slice(0,i).filter(x=>x.part===s.part).length + 1;
-  const partCount = SCENES.filter(x=>x.part===s.part).length;
+  const lead = i===0 ? "ここからの6場面は、一人のクライアントとの一つのセッションです。前の場面の問いを受けて、クライアントの言葉が少しずつ変わっていきます。"
+    : i===PART1_END ? "ここからは、別々のクライアントとの場面です。セッションの途中を切り出した一場面として、クライアントの状態を見立ててください。" : "";
   cur = {first:null, memo:""};
   app.innerHTML = `
-  <div class="progress"><span class="pt">第${s.part}部</span><span>${pad(inPart)} / ${pad(partCount)}</span><div class="bar"><i style="width:${i/N*100}%"></i></div></div>
+  <div class="progress"><span>${pad(i+1)} / ${pad(N)}</span><div class="bar"><i style="width:${i/N*100}%"></i></div></div>
   <section class="scene">
+    ${lead?`<p class="note">${lead}</p>`:""}
     <div class="phase"><span class="p-name">${s.phase}</span><span class="p-ctx">${s.ctx}</span></div>
     <p class="quote">${esc(s.say)}</p>
     <div class="ask"><b>次に、どのエリアの問いを選びますか？</b><span>クライアントが今どんな状態に見えるかを考えてから、地図をタップしてください。</span></div>
@@ -533,7 +500,7 @@ function reveal(){
       <p class="read">${v.read}</p>
       <div class="qrow"><span class="chip k-${v.area}">${Q[v.area].nm}</span><p class="q">「${v.q}」</p></div>
     </div>`).join("");
-  const last = i+1===N, endOfPart1 = i+1===PART1_END;
+  const last = i+1===N;
   document.getElementById("revealSlot").innerHTML = `
   <div class="step" id="revealStep">
     <span class="stepno">STEP 4</span>
@@ -545,14 +512,14 @@ function reveal(){
     <div class="callout"><h3>「${Q[k].nm}」の問いで気をつけたいこと</h3><p>${Q[k].risk}。</p></div>
     ${s.note?`<div class="callout"><h3>${s.note.title}</h3><p>${s.note.body}</p></div>`:""}
     <div class="nextrow">
-      <button class="btn" id="next">${last?"振り返りへ":endOfPart1?"第1部を終える":"次の場面へ"}</button>
-      ${last||endOfPart1?"":`<button class="textbtn" id="stopHere">この場面までで終えて、PDFを受け取る</button>`}
+      <button class="btn" id="next">${last?"振り返りへ":"次の場面へ"}</button>
+      ${last?"":`<button class="textbtn" id="stopHere">この場面までで終えて、PDFを受け取る</button>`}
     </div>
   </div>`;
   const commit = ()=>{ S.rec[S.idx] = {first:cur.first, memo:cur.memo}; S.idx++; S.rec.length = S.idx; save(); };
   document.getElementById("next").onclick = ()=>{
     commit();
-    if(S.idx===N) end(); else if(S.idx===PART1_END) interlude(); else scene();
+    if(S.idx===N) end(); else scene();
     toTop();
   };
   const st = document.getElementById("stopHere");
@@ -626,9 +593,14 @@ function end(){
     <p class="status" id="dlStatus" role="status"></p>
   </section>
   <section class="section">
-    <h2>演習についてのご質問</h2>
-    <p>演習や記事の内容について分からないことがあれば、記事の最後のフォームからお気軽にお問い合わせください。</p>
-    <div class="row"><a class="btn ghost" href="${ARTICLE_URL}" target="_blank" rel="noopener">記事に戻る</a></div>
+    <h2>もっと詳しく知りたい方へ</h2>
+    <p>SQFの4つのエリアの詳しい解説は、noteの記事「何を質問すべきか分からなくなるコーチへ」にまとめています。記事では、60分の無料セッションもご案内しています。</p>
+    <div class="row"><a class="btn ghost" href="${ARTICLE_URL}" target="_blank" rel="noopener">詳しい解説を読む</a></div>
+  </section>
+  <section class="section">
+    <h2>ご質問はこちら</h2>
+    <p>演習の内容について分からないことがあれば、フォームからお気軽にお問い合わせください。</p>
+    <div class="row"><a class="btn ghost" href="${FORM_URL}" target="_blank" rel="noopener">質問フォームを開く</a></div>
   </section>
   <section class="section">
     <button class="textbtn" id="restart" style="align-self:flex-start">記録を消して、最初からやり直す</button>
@@ -636,7 +608,7 @@ function end(){
   </section>
   ${footer()}`;
   const r = document.getElementById("resume");
-  if(r) r.onclick = ()=>{ (S.idx===PART1_END ? partIntro(2) : scene()); toTop(); };
+  if(r) r.onclick = ()=>{ scene(); toTop(); };
   document.getElementById("dl").onclick = downloadPDF;
   document.getElementById("restart").onclick = ()=>{
     document.getElementById("restartConfirm").innerHTML = `<div class="confirm"><p>記録はこの端末から消えます。先にPDFを受け取っておくと安心です。</p>
@@ -657,7 +629,7 @@ function pageCover(t){
   return `
   <div style="display:flex;flex-direction:column;gap:6px"><span class="eb">SQF CASE PRACTICE</span>
     <h1>SQFケース演習<br>受講記録</h1>
-    <p class="mu">記事「何を質問すべきか分からなくなるコーチへ」の購入者向け演習の記録と資料です。</p></div>
+    <p class="mu">noteの購入者向けの演習です。あなたの演習の記録と、SQFの資料をまとめています。</p></div>
   <div class="stats">
     <div class="box"><h4>終えた場面</h4><span class="big">${t.done}<small> / ${N}</small></span></div>
     <div class="box"><h4>問いを書いた場面</h4><span class="big">${t.written}<small> / ${t.done}</small></span></div>
@@ -730,7 +702,7 @@ function recCard(r,i){
   const s = SCENES[i];
   const memo = r.memo && r.memo.trim();
   return `<div class="rc">
-    <div class="hd"><span class="n">${pad(i+1)}</span><span class="pt">第${s.part}部</span><b>${s.phase}</b><span class="mu" style="font-size:11.5px">${s.ctx}</span></div>
+    <div class="hd"><span class="n">${pad(i+1)}</span><span class="pt">${s.part===1?"一つのセッション":"単独の場面"}</span><b>${s.phase}</b><span class="mu" style="font-size:11.5px">${s.ctx}</span></div>
     <div class="say">クライアント：${esc(s.say)}</div>
     <div><span class="lbl">あなたの選択</span><span class="chip k-${r.first}">${Q[r.first].nm}</span></div>
     <div class="ym${memo?"":" empty"}">${memo?esc(r.memo):"（問いは書いていません）"}</div>
@@ -741,9 +713,11 @@ function recCard(r,i){
 
 function ctaBlock(){
   return `<div class="ctaP"><span class="eb">NEXT STEP</span>
-    <p style="font-weight:700;font-size:14px">演習についてのご質問</p>
-    <p>演習や記事の内容について分からないことがあれば、記事の最後のフォームからお気軽にお問い合わせください。</p>
+    <p style="font-weight:700;font-size:14px">もっと詳しく知りたい方へ</p>
+    <p>SQFの詳しい解説と60分の無料セッションのご案内は、noteの記事「何を質問すべきか分からなくなるコーチへ」にあります。</p>
     <span class="url">${ARTICLE_URL}</span>
+    <p style="font-weight:700;font-size:14px;margin-top:6px">ご質問はこちら</p>
+    <span class="url" style="word-break:break-all">${FORM_URL}</span>
     <p class="mu" style="font-size:11px">出典：Hauser, L. L. (2017). The Science Behind Powerful Questioning: A Systemic Questioning Framework for Coach Educators and Practitioners. Philosophy of Coaching: An International Journal, 2(2), 51–68.（CC BY）／4つのエリアの日本語化・質問例・事例は筆者による再構成です。原著者による監修・確認は受けていません。</p>
   </div>`;
 }
@@ -788,7 +762,7 @@ async function downloadPDF(){
       pdf.addImage(cv.toDataURL("image/jpeg",0.9), "JPEG", 0, 0, 595.28, 841.89);
     }
     pdf.save("SQFケース演習_受講記録.pdf");
-    st.textContent = "PDFを作成しました。保存されない場合は、表示されたPDFを共有メニューから保存してください。";
+    st.textContent = "PDFを作成しました。";
   }catch(e){
     st.textContent = "PDFを作成できませんでした。ページを再読み込みしてからお試しください。";
   }finally{
