@@ -147,6 +147,11 @@ textarea:focus{border-color:var(--accent);outline:none}
 .log .no{font-family:var(--mono);font-size:13px;color:var(--muted)}
 .log .m{font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere}
 .log .m.empty{color:var(--muted)}
+.ft{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+.ft th,.ft td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.ft th{font-size:12px;color:var(--muted);font-weight:700}
+.ft th:not(:first-child),.ft td:not(:first-child){text-align:right;white-space:nowrap}
+.ft .tag{font-size:12px;font-weight:700;color:var(--accent);margin-left:6px}
 .dl{background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:12px}
 .dl h3{font-size:21px}
 .dl ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:2px}
@@ -206,6 +211,8 @@ footer a{color:var(--muted)}
 .pg .rc .cv{display:flex;flex-direction:column;gap:2px;color:#3A3446}
 .pg .ctaP{border:1.5px solid var(--p-accent);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:4px}
 .pg .url{font-family:var(--mono);font-size:12px;color:var(--p-accent)}
+.pg .pft td:not(:first-child),.pg .pft th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.pg .tag{font-size:11px;font-weight:700;color:var(--p-accent);margin-left:6px}
 #measure{width:666px;display:flex;flex-direction:column;gap:12px}
 </style>
 
@@ -431,18 +438,24 @@ function scene(){
     ${lead?`<p class="note">${lead}</p>`:""}
     <div class="phase"><span class="p-name">${s.phase}</span><span class="p-ctx">${s.ctx}</span></div>
     <p class="quote">${esc(s.say)}</p>
-    <div class="ask"><b>次に、どのエリアの問いを選びますか？</b><span>クライアントが今どんな状態に見えるかを考えてから、地図をタップしてください。</span></div>
+    <div class="ask"><span class="stepno">STEP 1</span><b>次に、どのエリアの問いを選びますか？</b><span>クライアントが今どんな状態に見えるかを考えてから、地図をタップしてください。</span></div>
     <div id="mapSlot">${mapHTML("pick")}</div>
     <div id="writeSlot"></div>
     <div id="checkSlot"></div>
     <div id="revealSlot"></div>
   </section>`;
+  pickMap();
+}
+
+function pickMap(){
+  document.getElementById("mapSlot").innerHTML = mapHTML("pick");
   app.querySelectorAll("#mapSlot .cell").forEach(c=>c.onclick=()=>write(c.dataset.k));
 }
 
 function write(k){
   cur.first = k;
   document.getElementById("mapSlot").innerHTML = mapHTML("locked",{pick:k});
+  document.getElementById("checkSlot").innerHTML = "";
   document.getElementById("writeSlot").innerHTML = `
   <div class="step" id="writeStep">
     <span class="stepno">STEP 2</span>
@@ -452,8 +465,18 @@ function write(k){
     <textarea id="memo" placeholder="ここに問いを書いてください"></textarea>
     <div class="row"><button class="btn" id="toCheck">書かずに見立てを見る</button></div>
     <p class="skip">書かない場合は、何も入力せずにそのままボタンを押してください。見立てに進みます。</p>
+    <button class="textbtn" id="repick" style="align-self:flex-start">選ぶエリアを変える</button>
   </div>`;
   const ta = document.getElementById("memo"), b = document.getElementById("toCheck");
+  ta.value = cur.memo;
+  if(cur.memo.trim()) b.textContent = "書いた問いを点検する";
+  document.getElementById("repick").onclick = ()=>{
+    cur.memo = ta.value; cur.first = null;
+    document.getElementById("writeSlot").innerHTML = "";
+    document.getElementById("checkSlot").innerHTML = "";
+    pickMap();
+    go(document.getElementById("mapSlot"));
+  };
   ta.oninput = ()=>{ cur.memo = ta.value; b.textContent = ta.value.trim() ? "書いた問いを点検する" : "書かずに見立てを見る"; };
   b.onclick = ()=>{
     cur.memo = ta.value;
@@ -469,7 +492,7 @@ function check(){
   <div class="step" id="checkStep">
     <span class="stepno">STEP 3</span>
     <h2>書いた問いを、自分で点検する</h2>
-    <p class="small muted">答えを書く必要はありません。頭の中で確かめてください。直したくなったら、上の欄をそのまま書き換えて大丈夫です。</p>
+    <p class="small muted">点検の結果を入力する必要はありません。頭の中で確かめてください。直したくなったら、上の欄をそのまま書き換えて大丈夫です。</p>
     <ol class="checks">
       <li>この問いは、クライアントの言葉から来ていますか。それとも、あなたの解釈から来ていますか。</li>
       <li>「${Q[k].nm}」の意図、<b>${Q[k].intent}</b>に合っていますか。</li>
@@ -489,6 +512,7 @@ function check(){
 function reveal(){
   const i = S.idx, s = SCENES[i], k = cur.first;
   const coach = s.views.map(v=>v.area);
+  const rp = document.getElementById("repick"); if(rp) rp.hidden = true;
   document.getElementById("mapSlot").innerHTML = mapHTML("locked",{pick:k, coach});
   const same = coach.includes(k), multi = s.views.length>1;
   const pickline = same
@@ -528,23 +552,38 @@ function reveal(){
 }
 
 /* ---------- end ---------- */
+const MIN_FEATURE = 4, TH = 2;
 function summary(){
   const done = S.idx, complete = done===N;
-  const counts = {c:0,m:0,k:0,a:0};
-  S.rec.forEach(r=>counts[r.first]++);
+  const counts = {c:0,m:0,k:0,a:0}, base = {c:0,m:0,k:0,a:0};
+  S.rec.forEach((r,i)=>{
+    counts[r.first]++;
+    const v = SCENES[i].views; v.forEach(x=>{ base[x.area] += 1/v.length; });
+  });
+  const diff = {}; ORDER.forEach(k=>{ diff[k] = counts[k]-base[k]; });
+  const more = ["c","m","k","a"].filter(k=>diff[k] >= TH-1e-9);
+  const less = ["c","m","k","a"].filter(k=>diff[k] <= -TH+1e-9);
   const written = S.rec.filter(r=>r.memo && r.memo.trim()).length;
   const diffs = S.rec.map((r,i)=>({r,i,s:SCENES[i]})).filter(x=>!x.s.views.some(v=>v.area===x.r.first));
-  const max = Math.max(...Object.values(counts)), min = Math.min(...Object.values(counts));
-  const most = ORDER.filter(k=>counts[k]===max), least = ORDER.filter(k=>counts[k]===min);
-  return {done, complete, counts, written, diffs, most, least};
+  return {done, complete, counts, base, diff, more, less, written, diffs, enough: done>=MIN_FEATURE};
 }
-
-function trendText(t){
-  if(t.most.length===4) return "4つのエリアを、ほぼ同じ数ずつ選んでいます。";
-  const mostNm = t.most.map(k=>`「${Q[k].nm}」`).join("と");
-  const leastNm = t.least.map(k=>`「${Q[k].nm}」`).join("と");
-  return `最初に選んだエリアは${mostNm}が最も多く、${leastNm}が最も少なくなりました。場面が変わっても同じエリアを選びやすいなら、それがあなたの見立てのクセかもしれません。`;
+function fmt(x){ return Math.abs(x-Math.round(x))<1e-9 ? String(Math.round(x)) : x.toFixed(1); }
+function featureText(t){
+  if(!t.more.length && !t.less.length) return "事例のコーチとほぼ同じ配分で、4つのエリアを選んでいます。";
+  const nm = ks=>ks.map(k=>`「${Q[k].nm}」`).join("と");
+  const parts = [];
+  if(t.more.length) parts.push(`${nm(t.more)}を多めに`);
+  if(t.less.length) parts.push(`${nm(t.less)}を少なめに`);
+  return `事例のコーチと比べて、${parts.join("、")}選んでいます。`;
 }
+const FEATURE_NOTE = "どちらが良い・悪いということではありません。多めに選んでいるエリアは、あなたが自然に使えている問いです。少なめのエリアは、次のセッションで意識して試してみる余地があるところです。";
+function featureTable(t, cls){
+  const tag = k=> t.more.includes(k) ? `<span class="tag">多め</span>` : t.less.includes(k) ? `<span class="tag">少なめ</span>` : "";
+  return `<table class="${cls}"><thead><tr><th>エリア</th><th>あなた</th><th>事例のコーチ</th></tr></thead><tbody>${
+    ["c","m","k","a"].map(k=>`<tr><td><span class="chip k-${k}">${Q[k].nm}</span></td><td>${t.counts[k]}回${tag(k)}</td><td>${fmt(t.base[k])}回</td></tr>`).join("")
+  }</tbody></table>`;
+}
+const BASE_NOTE = "事例のコーチの回数は、あなたが終えた場面での回数です。見立てが二つある場面は、0.5回ずつ数えています。";
 
 function end(){
   const t = summary();
@@ -552,24 +591,26 @@ function end(){
   <header class="hero">
     <span class="eyebrow">${t.complete?"演習を終えました":"ここまでの記録"}</span>
     <h1>${t.complete?"すべての場面を、<br>終えました。":"ここまでの記録です。"}</h1>
-    <p class="lead">${t.complete?"選んだエリアの傾向と、場面ごとの記録です。":`${N}場面のうち、${t.done}場面を終えています。`}</p>
+    <p class="lead">${t.complete?"選び方の特徴と、場面ごとの記録です。":`${N}場面のうち、${t.done}場面を終えています。`}</p>
   </header>
   <div class="tally">
     <div class="stat"><div class="k">終えた場面</div><div class="v">${t.done}<small> / ${N}</small></div></div>
     <div class="stat"><div class="k">問いを書いた場面</div><div class="v">${t.written}<small> / ${t.done}</small></div></div>
   </div>
-  ${t.complete?`<section class="section">
-    <h2>あなたの選び方の傾向</h2>
-    <p class="small muted">各場面で、最初に選んだエリアの数です。</p>
-    ${mapHTML("static",{counts:t.counts})}
-    <p>${trendText(t)}</p>
+  ${t.enough?`<section class="section">
+    <h2>あなたの選び方の特徴</h2>
+    <p class="small muted">各エリアを選んだ回数を、事例のコーチの見立てと並べています。</p>
+    ${featureTable(t,"ft")}
+    <p class="small muted">${BASE_NOTE}</p>
+    <p>${featureText(t)}</p>
+    ${t.more.length||t.less.length?`<p class="small">${FEATURE_NOTE}</p>`:""}
     ${t.diffs.length?`<p class="small">事例のコーチと見立てが違ったのは、次の${t.diffs.length}場面です。どちらが正しいということではなく、あなたの見立てが表れやすい場面です。</p>
       <ul class="log">${t.diffs.map(({r,i,s})=>`<li><div class="hd"><span class="no">${pad(i+1)}</span><span>${s.phase}</span></div>
         <p class="small muted">${esc(s.say)}</p>
         <div class="hd"><span class="small">あなた</span><span class="chip k-${r.first}">${Q[r.first].nm}</span><span class="small">事例のコーチ</span>${s.views.map(v=>`<span class="chip k-${v.area}">${Q[v.area].nm}</span>`).join("")}</div></li>`).join("")}</ul>`
-      :`<p class="small">すべての場面で、事例のコーチの見立てのどれかと同じエリアを選んでいます。次は、なぜそのエリアを選んだのかを、自分の言葉で説明できるか確かめてみてください。</p>`}
-  </section>`
-  :`<div class="callout"><h3>全場面を終えると</h3><p>あなたの選び方の傾向（4つのエリアをどう選んだかと、事例のコーチと見立てが違った場面）も、記録に加わります。</p>
+      :`<p class="small">どの場面でも、事例のコーチの見立てのどれかと同じエリアを選んでいます。次は、なぜそのエリアを選んだのかを、自分の言葉で説明できるか確かめてみてください。</p>`}
+  </section>`:""}
+  ${t.complete?"":`<div class="callout"><h3>${t.enough?"続きの場面へ":"選び方の特徴は、4場面から"}</h3><p>${t.enough?"残りの場面も終えると、より多くの場面から、あなたの選び方の特徴を見られます。":"4場面以上を終えると、事例のコーチの見立てと比べた、あなたの選び方の特徴が表示されます。"}</p>
     <div class="row" style="padding-top:6px"><button class="btn ghost" id="resume">続きから再開する</button></div></div>`}
   <section class="section">
     <h2>場面ごとの記録</h2>
@@ -587,14 +628,14 @@ function end(){
       <li>4つのエリアの全体図と、目的・効果・リスク</li>
       <li>自分・周囲・セッションの3つの視点の質問例</li>
       <li>GROWモデルとSQFの比較</li>
-      <li>あなたの受講記録（${t.done}場面${t.complete?"と、選び方の傾向":""}）</li>
+      <li>あなたの受講記録（${t.done}場面${t.enough?"と、選び方の特徴":""}）</li>
     </ul>
     <div class="row"><button class="btn" id="dl">PDFをダウンロード</button></div>
     <p class="status" id="dlStatus" role="status"></p>
   </section>
   <section class="section">
     <h2>もっと詳しく知りたい方へ</h2>
-    <p>SQFの4つのエリアの詳しい解説は、noteの記事「何を質問すべきか分からなくなるコーチへ」にまとめています。記事では、60分の無料セッションもご案内しています。</p>
+    <p>SQFの4つのエリアの詳しい解説は、noteの記事「何を質問すべきか分からなくなるコーチへ」にまとめています。記事では、SQFを使ったセッションを受けてみたい方、練習してみたい方に向けて、60分のセッション（初回無料）もご案内しています。</p>
     <div class="row"><a class="btn ghost" href="${ARTICLE_URL}" target="_blank" rel="noopener">詳しい解説を読む</a></div>
   </section>
   <section class="section">
@@ -634,18 +675,15 @@ function pageCover(t){
     <div class="box"><h4>終えた場面</h4><span class="big">${t.done}<small> / ${N}</small></span></div>
     <div class="box"><h4>問いを書いた場面</h4><span class="big">${t.written}<small> / ${t.done}</small></span></div>
   </div>
-  ${t.complete?`
-  <div style="display:flex;flex-direction:column;gap:8px"><span class="eb">あなたの選び方の傾向</span>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <div>${mapHTML("static",{counts:t.counts})}</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <p>${trendText(t)}</p>
-        ${t.diffs.length?`<p class="mu">事例のコーチと見立てが違った場面：${t.diffs.map(x=>pad(x.i+1)).join("、")}（詳しくは受講記録のページ）</p>`
-          :`<p class="mu">すべての場面で、事例のコーチの見立てのどれかと同じエリアを選んでいます。</p>`}
-        <p class="mu" style="font-size:11.5px">どちらが正しいということではありません。選んだ理由を言葉にすることが、見立ての力を育てます。</p>
-      </div>
-    </div></div>`
-  :`<div class="box"><h4>全場面を終えると</h4><p>あなたの選び方の傾向（4つのエリアをどう選んだかと、事例のコーチと見立てが違った場面）も、この記録に加わります。同じ端末で演習ページを開くと、続きから再開できます。</p></div>`}
+  ${t.enough?`
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="eb">あなたの選び方の特徴</span>
+    ${featureTable(t,"pft")}
+    <p class="mu" style="font-size:11.5px">${BASE_NOTE}</p>
+    <p style="font-weight:700">${featureText(t)}</p>
+    ${t.more.length||t.less.length?`<p class="mu">${FEATURE_NOTE}</p>`:""}
+    ${t.diffs.length?`<p class="mu">事例のコーチと見立てが違った場面：${t.diffs.map(x=>pad(x.i+1)).join("、")}（詳しくは受講記録のページ）</p>`:""}
+  </div>`
+  :`<div class="box"><h4>選び方の特徴は、4場面から</h4><p>4場面以上を終えると、事例のコーチの見立てと比べた、あなたの選び方の特徴がこの記録に加わります。同じ端末で演習ページを開くと、続きから再開できます。</p></div>`}
   <div class="box"><h4>このPDFの中身</h4>
     <ul><li>4つのエリアの全体図と、目的・効果・リスク</li><li>自分・周囲・セッションの3つの視点の質問例</li><li>GROWモデルとSQFの比較（筆者の整理）</li><li>あなたの受講記録（場面ごとに、選んだエリア・書いた問い・事例のコーチの見立て）</li></ul></div>`;
 }
@@ -714,7 +752,7 @@ function recCard(r,i){
 function ctaBlock(){
   return `<div class="ctaP"><span class="eb">NEXT STEP</span>
     <p style="font-weight:700;font-size:14px">もっと詳しく知りたい方へ</p>
-    <p>SQFの詳しい解説と60分の無料セッションのご案内は、noteの記事「何を質問すべきか分からなくなるコーチへ」にあります。</p>
+    <p>SQFの詳しい解説と、60分のセッション（初回無料）のご案内は、noteの記事「何を質問すべきか分からなくなるコーチへ」にあります。</p>
     <span class="url">${ARTICLE_URL}</span>
     <p style="font-weight:700;font-size:14px;margin-top:6px">ご質問はこちら</p>
     <span class="url" style="word-break:break-all">${FORM_URL}</span>
@@ -727,7 +765,7 @@ async function buildReport(host){
   const fixed = [pageCover(t), pageAreas(), pagePersp(), pageGrow()];
   // measure record cards to pack them into pages
   const head = `<div style="display:flex;flex-direction:column;gap:4px"><span class="eb">RECORD</span><h2>あなたの受講記録</h2>
-    <p class="mu">場面ごとに、最初に選んだエリア、書いた問い、事例のコーチの見立てを並べています。</p></div>`;
+    <p class="mu">場面ごとに、選んだエリア、書いた問い、事例のコーチの見立てを並べています。</p></div>`;
   const blocks = [head, ...S.rec.map(recCard), ctaBlock()];
   host.innerHTML = `<div class="pg" style="height:auto"><div id="measure">${blocks.join("")}</div></div>`;
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
