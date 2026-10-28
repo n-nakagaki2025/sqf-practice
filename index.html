@@ -233,7 +233,7 @@ const Q = {
      purpose:"状況を理解する", effect:"コーチとクライアントの理解がそろう", risk:"尋問されているように感じさせる",
      intent:"何が起きているかの事実を、コーチとクライアントでそろえる"},
   m:{nm:"現状の意味づけ", en:"Meaning Making", sub:"過去 × 内面",
-     purpose:"価値観を確かめる", effect:"安心感と信頼感が生まれる", risk:"焦点が定まらなくなる",
+     purpose:"価値観を確かめる", effect:"安心感と信頼感が生まれる", risk:"過度に繰り返すと、焦点が定まらなくなる",
      intent:"その状況がクライアントにとって何を意味するのかを探る"},
   k:{nm:"新たな意味づけ", en:"Catalyzing", sub:"未来 × 内面",
      purpose:"変化を喚起する", effect:"新たな気づきと可能性が開く", risk:"批判されていると感じさせる",
@@ -454,7 +454,8 @@ function pickMap(){
 
 function write(k){
   cur.first = k;
-  document.getElementById("mapSlot").innerHTML = mapHTML("locked",{pick:k});
+  document.getElementById("mapSlot").innerHTML = mapHTML("pick",{pick:k});
+  app.querySelectorAll("#mapSlot .cell").forEach(c=>c.onclick=()=>{ const ta=document.getElementById("memo"); if(ta) cur.memo = ta.value; if(c.dataset.k!==cur.first) write(c.dataset.k); });
   document.getElementById("checkSlot").innerHTML = "";
   document.getElementById("writeSlot").innerHTML = `
   <div class="step" id="writeStep">
@@ -465,18 +466,11 @@ function write(k){
     <textarea id="memo" placeholder="ここに問いを書いてください"></textarea>
     <div class="row"><button class="btn" id="toCheck">書かずに見立てを見る</button></div>
     <p class="skip">書かない場合は、何も入力せずにそのままボタンを押してください。見立てに進みます。</p>
-    <button class="textbtn" id="repick" style="align-self:flex-start">選ぶエリアを変える</button>
+    <p class="skip">見立てを見る前なら、上の地図をタップして、選ぶエリアを変えられます。書いた問いは残ります。</p>
   </div>`;
   const ta = document.getElementById("memo"), b = document.getElementById("toCheck");
   ta.value = cur.memo;
   if(cur.memo.trim()) b.textContent = "書いた問いを点検する";
-  document.getElementById("repick").onclick = ()=>{
-    cur.memo = ta.value; cur.first = null;
-    document.getElementById("writeSlot").innerHTML = "";
-    document.getElementById("checkSlot").innerHTML = "";
-    pickMap();
-    go(document.getElementById("mapSlot"));
-  };
   ta.oninput = ()=>{ cur.memo = ta.value; b.textContent = ta.value.trim() ? "書いた問いを点検する" : "書かずに見立てを見る"; };
   b.onclick = ()=>{
     cur.memo = ta.value;
@@ -512,7 +506,6 @@ function check(){
 function reveal(){
   const i = S.idx, s = SCENES[i], k = cur.first;
   const coach = s.views.map(v=>v.area);
-  const rp = document.getElementById("repick"); if(rp) rp.hidden = true;
   document.getElementById("mapSlot").innerHTML = mapHTML("locked",{pick:k, coach});
   const same = coach.includes(k), multi = s.views.length>1;
   const pickline = same
